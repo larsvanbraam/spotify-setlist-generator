@@ -10,9 +10,9 @@ export async function getConcerts(artistName: string): Promise<Array<Concert>> {
   try {
     const allConcerts: Array<Concert> = [];
     let page = 1;
-    const maxPages = 5; // Limit to first 100 concerts (5 pages * 20 per page)
+    const maxPages = 2; // Limit to first 40 concerts (2 pages * 20 per page)
 
-    // Fetch multiple pages of results (sorted by date descending to get most recent)
+    // Fetch multiple pages of results
     while (page <= maxPages) {
       const response = await axios.get(
         `https://api.setlist.fm/rest/1.0/search/setlists?artistName=${artistName}&p=${page}`,
@@ -39,6 +39,11 @@ export async function getConcerts(artistName: string): Promise<Array<Concert>> {
       }
       
       page++;
+      
+      // Add a small delay between requests to avoid rate limiting
+      if (page <= maxPages) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
     }
     
     console.log(`Total concerts fetched: ${allConcerts.length}`);
