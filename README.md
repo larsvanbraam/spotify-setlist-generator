@@ -49,10 +49,6 @@ poster-style cover, in a single keypress.
 - **Browser login with PKCE**: no client secret to manage, and the token is cached and refreshed
   automatically.
 
-<p align="center">
-  <img src=".github/assets/screenshot-review.svg" alt="Reviewing the Spotify matches for a setlist: 12 of 13 songs found" width="820">
-</p>
-
 ## Requirements
 
 - [Node.js](https://nodejs.org) 24 or newer
@@ -253,15 +249,14 @@ The project uses [Vite+](https://viteplus.dev) (`vp`) for formatting, linting, t
 testing and bundling, [Ink](https://github.com/vadimdemedes/ink) and React for the UI, and
 TypeScript 7.
 
-| Script                | What it does                                         |
-| --------------------- | ---------------------------------------------------- |
-| `npm run dev`         | Run the CLI from source (`vpx`)                      |
-| `npm run check`       | Format check, lint and type check                    |
-| `npm run fmt`         | Format all files                                     |
-| `npm test`            | Run the tests                                        |
-| `npm run build`       | Bundle to `dist/cli.mjs` (`vp pack`)                 |
-| `npm start`           | Run the bundled CLI                                  |
-| `npm run screenshots` | Regenerate the review screenshot in `.github/assets` |
+| Script          | What it does                         |
+| --------------- | ------------------------------------ |
+| `npm run dev`   | Run the CLI from source (`vpx`)      |
+| `npm run check` | Format check, lint and type check    |
+| `npm run fmt`   | Format all files                     |
+| `npm test`      | Run the tests                        |
+| `npm run build` | Bundle to `dist/cli.mjs` (`vp pack`) |
+| `npm start`     | Run the bundled CLI                  |
 
 ### Project structure
 
@@ -280,13 +275,7 @@ src/
     ├── theme.ts          Colours
     ├── components/       Header, Select, TextInput, ProgressBar, …
     └── screens/          Concert picker and match list
-scripts/
-└── screenshot.tsx        Renders the review screen with sample data to SVG for this README
 ```
-
-The review screenshot is not captured by hand: `scripts/screenshot.tsx` renders the real
-components with sample data through Ink's `renderToString` and converts the ANSI output to SVG.
-Run `npm run screenshots` after changing the UI to keep it up to date.
 
 ## License
 

@@ -17,8 +17,7 @@
     "check": "vp check",
     "fmt": "vp fmt",
     "lint": "vp lint",
-    "test": "vp test",
-    "screenshots": "FORCE_COLOR=3 vpx scripts/screenshot.tsx"
+    "test": "vp test"
   },
   "dependencies": {
     "@fontsource/space-grotesk": "^5.3.0",
