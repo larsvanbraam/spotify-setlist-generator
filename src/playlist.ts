@@ -1,4 +1,5 @@
-import { formatLocation, getPlaylistName, getSongs, toIsoDate } from './setlist.ts';
+import { renderCover } from './cover/cover.tsx';
+import { formatLocation, getPlaylistName, getSongs } from './setlist.ts';
 import type { Concert, Song } from './setlist.ts';
 import type { SpotifyClient, Track } from './spotify/client.ts';
 
@@ -54,21 +55,10 @@ export async function createSetlistPlaylist(
 
   onStep('Uploading cover');
   try {
-    await spotify.uploadCover(playlist.id, await createCover(concert));
+    await spotify.uploadCover(playlist.id, await renderCover(concert, matches));
   } catch {
     // A missing cover is not worth failing the whole playlist for.
   }
 
   return playlist.url;
-}
-
-/** Generates a simple poster-style cover for the playlist. */
-async function createCover(concert: Concert): Promise<string> {
-  const label = [concert.artist.name, concert.venue.name, toIsoDate(concert.eventDate)].join('\n');
-  const response = await fetch(
-    `https://placehold.co/640x640/121212/1DB954/jpeg?font=montserrat&text=${encodeURIComponent(label)}`,
-  );
-  if (!response.ok) throw new Error(`Cover request failed: ${response.status}`);
-
-  return Buffer.from(await response.arrayBuffer()).toString('base64');
 }

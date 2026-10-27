@@ -6,6 +6,12 @@ export type Track = {
   uri: string;
   name: string;
   artists: Array<{ name: string }>;
+  album: {
+    id: string;
+    name: string;
+    /** Widest first. */
+    images: Array<{ url: string; width: number; height: number }>;
+  };
 };
 
 /**
