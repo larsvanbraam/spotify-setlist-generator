@@ -14,7 +14,7 @@
 </div>
 
 <p align="center">
-  <img src=".github/assets/screenshot-concerts.svg" alt="Picking one of Radiohead's recent concerts, with a live preview of its setlist" width="820">
+  <img src=".github/assets/screenshot-concerts.webp" alt="Picking one of Breaking Benjamin's recent concerts, with a live preview of its setlist">
 </p>
 
 Just been to a great show and want to relive it? Search the artist, pick the concert from their
@@ -253,15 +253,15 @@ The project uses [Vite+](https://viteplus.dev) (`vp`) for formatting, linting, t
 testing and bundling, [Ink](https://github.com/vadimdemedes/ink) and React for the UI, and
 TypeScript 7.
 
-| Script                | What it does                                          |
-| --------------------- | ----------------------------------------------------- |
-| `npm run dev`         | Run the CLI from source (`vpx`)                       |
-| `npm run check`       | Format check, lint and type check                     |
-| `npm run fmt`         | Format all files                                      |
-| `npm test`            | Run the tests                                         |
-| `npm run build`       | Bundle to `dist/cli.mjs` (`vp pack`)                  |
-| `npm start`           | Run the bundled CLI                                   |
-| `npm run screenshots` | Regenerate the README screenshots in `.github/assets` |
+| Script                | What it does                                         |
+| --------------------- | ---------------------------------------------------- |
+| `npm run dev`         | Run the CLI from source (`vpx`)                      |
+| `npm run check`       | Format check, lint and type check                    |
+| `npm run fmt`         | Format all files                                     |
+| `npm test`            | Run the tests                                        |
+| `npm run build`       | Bundle to `dist/cli.mjs` (`vp pack`)                 |
+| `npm start`           | Run the bundled CLI                                  |
+| `npm run screenshots` | Regenerate the review screenshot in `.github/assets` |
 
 ### Project structure
 
@@ -281,12 +281,12 @@ src/
     ├── components/       Header, Select, TextInput, ProgressBar, …
     └── screens/          Concert picker and match list
 scripts/
-└── screenshot.tsx        Renders the UI with sample data to SVG for this README
+└── screenshot.tsx        Renders the review screen with sample data to SVG for this README
 ```
 
-The screenshots are not captured by hand: `scripts/screenshot.tsx` renders the real components
-with sample data through Ink's `renderToString` and converts the ANSI output to SVG. Run
-`npm run screenshots` after changing the UI to keep them up to date.
+The review screenshot is not captured by hand: `scripts/screenshot.tsx` renders the real
+components with sample data through Ink's `renderToString` and converts the ANSI output to SVG.
+Run `npm run screenshots` after changing the UI to keep it up to date.
 
 ## License
 

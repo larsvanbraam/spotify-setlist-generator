@@ -13,7 +13,6 @@ import type { Concert } from '../src/setlist.ts';
 import { Header } from '../src/ui/components/Header.tsx';
 import { KeyHints } from '../src/ui/components/KeyHints.tsx';
 import { ProgressBar } from '../src/ui/components/ProgressBar.tsx';
-import { ConcertPicker } from '../src/ui/screens/ConcertPicker.tsx';
 import { MatchList } from '../src/ui/screens/MatchList.tsx';
 import { theme } from '../src/ui/theme.ts';
 
@@ -66,20 +65,7 @@ const setlist = [
   'Karma Police',
 ];
 
-const concerts = [
-  concert('14-11-2025', 'Ziggo Dome', 'Amsterdam', 'NL', setlist),
-  concert('13-11-2025', 'Ziggo Dome', 'Amsterdam', 'NL', setlist.slice(2)),
-  concert('09-11-2025', 'Uber Arena', 'Berlin', 'DE', setlist.slice(1)),
-  concert('08-11-2025', 'Uber Arena', 'Berlin', 'DE', setlist.slice(0, 11)),
-  concert('04-11-2025', 'The O2 Arena', 'London', 'GB', setlist.slice(3)),
-  concert('03-11-2025', 'The O2 Arena', 'London', 'GB', setlist),
-  concert('30-10-2025', 'Unipol Arena', 'Bologna', 'IT', setlist.slice(0, 12)),
-  concert('29-10-2025', 'Unipol Arena', 'Bologna', 'IT', setlist.slice(2)),
-  concert('25-10-2025', 'Movistar Arena', 'Madrid', 'ES', setlist.slice(1)),
-  concert('24-10-2025', 'Movistar Arena', 'Madrid', 'ES', setlist),
-];
-
-const shown = concerts[0]!;
+const shown = concert('14-11-2025', 'Ziggo Dome', 'Amsterdam', 'NL', setlist);
 const matches: Array<Match> = getSongs(shown).map((song) =>
   song.name === 'The Gloaming'
     ? { song }
@@ -95,11 +81,6 @@ const matches: Array<Match> = getSongs(shown).map((song) =>
 );
 
 const screens: Record<string, ReactNode> = {
-  'screenshot-concerts': (
-    <Screen>
-      <ConcertPicker concerts={concerts} onSubmit={() => {}} onCancel={() => {}} />
-    </Screen>
-  ),
   'screenshot-review': (
     <Screen>
       <Text>
