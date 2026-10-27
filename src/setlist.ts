@@ -59,12 +59,17 @@ export async function searchConcerts(artistName: string, apiKey: string): Promis
     url.searchParams.set('artistName', artistName);
     url.searchParams.set('p', String(page));
 
-    const response = await fetch(url, {
-      headers: { 'x-api-key': apiKey, Accept: 'application/json' },
-    });
+    const response = await fetchWithRetry(url, apiKey);
 
     // setlist.fm answers 404 when a search has no (more) results.
     if (response.status === 404) break;
+    if (response.status === 429) {
+      // Already have results: show what we got rather than failing the whole search.
+      if (concerts.length > 0) break;
+      throw new Error(
+        'setlist.fm rate limit reached. Wait a minute and try again (the daily limit resets at midnight UTC).',
+      );
+    }
     if (!response.ok) {
       throw new Error(`setlist.fm request failed: ${response.status} ${response.statusText}`);
     }
@@ -77,14 +82,36 @@ export async function searchConcerts(artistName: string, apiKey: string): Promis
 
     if (setlist.length === 0 || concerts.length >= total) break;
 
-    // Stay well within setlist.fm's rate limit.
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    // setlist.fm allows ~2 requests/second; leave plenty of headroom.
+    await sleep(1000);
   }
 
   const today = new Date().toISOString().slice(0, 10);
   return concerts.filter(
     (concert) => getSongs(concert).length > 0 && toIsoDate(concert.eventDate) <= today,
   );
+}
+
+const MAX_RETRIES = 3;
+
+/** GETs from setlist.fm, backing off and retrying when rate limited (429). */
+async function fetchWithRetry(url: URL, apiKey: string): Promise<Response> {
+  for (let attempt = 0; ; attempt++) {
+    const response = await fetch(url, {
+      headers: { 'x-api-key': apiKey, Accept: 'application/json' },
+    });
+    if (response.status !== 429 || attempt >= MAX_RETRIES) return response;
+
+    const retryAfter = Number(response.headers.get('retry-after'));
+    const delay = retryAfter > 0 ? retryAfter * 1000 : 1000 * 2 ** attempt;
+    // A long Retry-After means the daily quota is gone; don't hang the UI waiting for it.
+    if (delay > 10_000) return response;
+    await sleep(delay);
+  }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /** Flattens all sets (including encores) into a single list of songs. */
