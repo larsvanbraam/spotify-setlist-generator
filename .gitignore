@@ -1,5 +1,4 @@
-.env.example
 node_modules
-cache
-
-/.env
+dist
+.env
+token.json
