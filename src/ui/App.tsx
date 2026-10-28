@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 
 import type { Env } from '../env.ts';
 import { createSetlistPlaylist, matchSong, matchSongs } from '../playlist.ts';
-import type { Match } from '../playlist.ts';
+import type { Match, PlaylistOptions } from '../playlist.ts';
 import {
   formatFilters,
   formatLocation,
@@ -63,6 +63,8 @@ export function App({
   /** Edited concert details for the playlist, `undefined` uses the ones from setlist.fm. */
   const [details, setDetails] = useState<ConcertDetails>();
   const [editingDetails, setEditingDetails] = useState(false);
+  /** Makes a playlist to get to know a predicted setlist before an upcoming show. */
+  const [preShow, setPreShow] = useState(false);
   /** The concert as it ends up in the playlist name, description and cover. */
   const forPlaylist = (concert: Concert) => (details ? withDetails(concert, details) : concert);
   const { exit } = useApp();
@@ -126,6 +128,7 @@ export function App({
         setScreen({ name: 'matching', concert, matches: [...matches] });
       });
       setDetails(undefined);
+      setPreShow(false);
       // Start on the first missing song, that's the one you most likely want to fix.
       const firstMissing = result.findIndex((match) => !match.track);
       setScreen({ name: 'review', concert, matches: result, index: Math.max(0, firstMissing) });
@@ -151,8 +154,7 @@ export function App({
     }
   };
 
-  /** @param basedOn The setlist.fm concert, when the details of `concert` were edited. */
-  const create = async (concert: Concert, matches: Array<Match>, basedOn?: Concert) => {
+  const create = async (concert: Concert, matches: Array<Match>, options: PlaylistOptions) => {
     setScreen({ name: 'creating', concert, step: 'Creating playlist' });
     try {
       const url = await createSetlistPlaylist(
@@ -160,10 +162,15 @@ export function App({
         concert,
         matches,
         (step) => setScreen({ name: 'creating', concert, step }),
-        basedOn,
+        options,
       );
       onPlaylistCreated(url);
-      setScreen({ name: 'done', title: getPlaylistName(concert), matches, url });
+      setScreen({
+        name: 'done',
+        title: getPlaylistName(concert, options.preShow),
+        matches,
+        url,
+      });
     } catch (error) {
       fail(error);
     }
@@ -188,12 +195,16 @@ export function App({
         if (key.return) setScreen({ ...screen, name: 'pick' });
         if (input === 's') void split(screen.concert, screen.index, screen.matches[screen.index]!);
         if (input === 'e') setEditingDetails(true);
+        if (input === 'p') {
+          // The upcoming show is somewhere else, so ask for its details right away.
+          if (!preShow) setEditingDetails(true);
+          setPreShow(!preShow);
+        }
         if (input === 'c' && screen.matches.some((match) => match.track)) {
-          void create(
-            forPlaylist(screen.concert),
-            screen.matches,
-            details ? screen.concert : undefined,
-          );
+          void create(forPlaylist(screen.concert), screen.matches, {
+            basedOn: details || preShow ? screen.concert : undefined,
+            preShow,
+          });
         }
         if (key.escape) setScreen({ name: 'concerts' });
       }
@@ -269,11 +280,11 @@ export function App({
           {screen.name === 'review' && (
             <Text>
               <Text color={theme.muted}>Playlist: </Text>
-              {getPlaylistName(forPlaylist(screen.concert))}
-              {details && (
+              {getPlaylistName(forPlaylist(screen.concert), preShow)}
+              {(details || preShow) && (
                 <Text color={theme.muted}>
                   {' '}
-                  (edited, based on {screen.concert.venue.name} ·{' '}
+                  ({preShow ? 'predicted' : 'edited'}, based on {screen.concert.venue.name} ·{' '}
                   {toIsoDate(screen.concert.eventDate)})
                 </Text>
               )}
@@ -302,6 +313,7 @@ export function App({
             </Box>
           ) : editingDetails ? (
             <DetailsForm
+              title={preShow ? 'Upcoming show' : 'Concert details'}
               original={getDetails(screen.concert)}
               details={details ?? getDetails(screen.concert)}
               onSubmit={(edited) => {
@@ -315,7 +327,11 @@ export function App({
               onCancel={() => setEditingDetails(false)}
             />
           ) : (
-            <ReviewSummary matches={screen.matches} selected={screen.matches[screen.index]!} />
+            <ReviewSummary
+              matches={screen.matches}
+              selected={screen.matches[screen.index]!}
+              preShow={preShow}
+            />
           )}
         </Box>
       )}
@@ -383,7 +399,15 @@ function ConcertTitle({ concert }: { concert: Concert }) {
   );
 }
 
-function ReviewSummary({ matches, selected }: { matches: Array<Match>; selected: Match }) {
+function ReviewSummary({
+  matches,
+  selected,
+  preShow,
+}: {
+  matches: Array<Match>;
+  selected: Match;
+  preShow: boolean;
+}) {
   const found = matches.filter((match) => match.track).length;
   const skipped = matches.filter((match) => match.skipped).length;
   const missing = matches.length - found - skipped;
@@ -403,6 +427,7 @@ function ReviewSummary({ matches, selected }: { matches: Array<Match>; selected:
           ['↑↓', 'navigate'],
           ['enter', 'change track'],
           ['e', 'edit details'],
+          ['p', preShow ? 'regular playlist' : 'pre-show playlist'],
           ...(splitMedley(selected.song).length > 1
             ? [['s', 'split medley'] as [string, string]]
             : []),

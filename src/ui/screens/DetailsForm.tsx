@@ -15,6 +15,7 @@ const FIELDS: Array<{ key: keyof ConcertDetails; label: string }> = [
 ];
 
 type Props = {
+  title: string;
   /** The details from setlist.fm, used for empty fields. */
   original: ConcertDetails;
   details: ConcertDetails;
@@ -23,7 +24,7 @@ type Props = {
 };
 
 /** Edits the details the playlist name, description and cover are made from. */
-export function DetailsForm({ original, details, onSubmit, onCancel }: Props) {
+export function DetailsForm({ title, original, details, onSubmit, onCancel }: Props) {
   const [values, setValues] = useState(details);
   const [field, setField] = useState(0);
   const [error, setError] = useState<string>();
@@ -50,7 +51,7 @@ export function DetailsForm({ original, details, onSubmit, onCancel }: Props) {
 
   return (
     <Box flexDirection="column" marginTop={1}>
-      <Text bold>Concert details</Text>
+      <Text bold>{title}</Text>
       <Text color={theme.muted}>
         The playlist name, description and cover are made from these. Empty fields use the
         setlist.fm value.

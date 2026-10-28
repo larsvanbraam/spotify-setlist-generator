@@ -6,7 +6,7 @@ import satori from 'satori';
 import type { Font } from 'satori';
 import sharp from 'sharp';
 
-import type { Match } from '../playlist.ts';
+import type { Match, PlaylistOptions } from '../playlist.ts';
 import { toIsoDate } from '../setlist.ts';
 import type { Concert } from '../setlist.ts';
 import { accentFromName, createArtwork, getTopAlbumImages } from './artwork.ts';
@@ -18,21 +18,32 @@ const MAX_BASE64_BYTES = 256 * 1024;
 
 /**
  * Renders a concert-poster style cover: blurred album art from the setlist behind the artist
- * name, venue and date. Returns a base64 encoded JPEG ready for the Spotify API.
+ * name, venue and date. Pre-show covers flip that around, see `PreShowPoster`. Returns a base64
+ * encoded JPEG ready for the Spotify API.
  */
-export async function renderCover(concert: Concert, matches: Array<Match>): Promise<string> {
+export async function renderCover(
+  concert: Concert,
+  matches: Array<Match>,
+  { basedOn, preShow = false }: PlaylistOptions = {},
+): Promise<string> {
   const tracks = matches.flatMap((match) => (match.track ? [match.track] : []));
   const imageUrls = getTopAlbumImages(tracks);
 
   let artwork: Artwork | undefined;
   try {
-    if (imageUrls.length > 0) artwork = await createArtwork(imageUrls, SIZE);
+    if (imageUrls.length > 0) {
+      artwork = await createArtwork(imageUrls, SIZE, { monochrome: preShow });
+    }
   } catch {
     // Artwork is a nice-to-have, fall back to the plain gradient.
   }
 
   const svg = await satori(
-    <Poster concert={concert} songCount={tracks.length} artwork={artwork} />,
+    preShow ? (
+      <PreShowPoster concert={concert} basedOn={basedOn ?? concert} artwork={artwork} />
+    ) : (
+      <Poster concert={concert} songCount={tracks.length} artwork={artwork} />
+    ),
     { width: SIZE, height: SIZE, fonts: await loadFonts() },
   );
 
@@ -183,6 +194,124 @@ function Poster({ concert, songCount, artwork }: PosterProps) {
     </div>
   );
 }
+
+type PreShowPosterProps = { concert: Concert; basedOn: Concert; artwork?: Artwork };
+
+/**
+ * The inverse of `Poster`: dark type on a solid accent colour with a huge PRE / SHOW, so a
+ * predicted setlist stands out from the dark live covers even as a tiny thumbnail.
+ */
+function PreShowPoster({ concert, basedOn, artwork }: PreShowPosterProps) {
+  const accent = artwork?.accent ?? accentFromName(concert.artist.name);
+  const ink = '#0b0b0f';
+  const { venue } = concert;
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        width: SIZE,
+        height: SIZE,
+        position: 'relative',
+        backgroundColor: accent,
+        fontFamily: 'Space Grotesk',
+        color: ink,
+      }}
+    >
+      {/* Just a hint of the album art, as texture. */}
+      {artwork && (
+        <img
+          src={artwork.background}
+          width={SIZE}
+          height={SIZE}
+          style={{ position: 'absolute', opacity: 0.22 }}
+        />
+      )}
+
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'space-between',
+          width: '100%',
+          padding: 48,
+          position: 'relative',
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            fontSize: 22,
+            fontWeight: 700,
+            letterSpacing: 3,
+          }}
+        >
+          <span>PREDICTED SETLIST</span>
+          <span>{formatDate(concert.eventDate)}</span>
+        </div>
+
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            fontSize: 168,
+            fontWeight: 700,
+            lineHeight: 0.82,
+            letterSpacing: -6,
+          }}
+        >
+          <span>PRE</span>
+          <span>SHOW</span>
+        </div>
+
+        {/* A fixed width, so long names are cut off instead of widening the whole layout. */}
+        <div style={{ display: 'flex', flexDirection: 'column', width: SIZE - 96 }}>
+          <div
+            style={{
+              display: 'flex',
+              fontSize: Math.min(56, getTitleSize(concert.artist.name)),
+              fontWeight: 700,
+              lineHeight: 1,
+              letterSpacing: -1,
+            }}
+          >
+            {concert.artist.name}
+          </div>
+          <span style={{ ...ellipsis, fontSize: 26, fontWeight: 500, marginTop: 8 }}>
+            {[venue.name, venue.city.name].join(', ')}
+          </span>
+          <div
+            style={{
+              display: 'flex',
+              height: 3,
+              backgroundColor: ink,
+              margin: '24px 0 14px',
+            }}
+          />
+          <span
+            style={{
+              ...ellipsis,
+              fontSize: 18,
+              fontWeight: 500,
+              letterSpacing: 2,
+              opacity: 0.75,
+            }}
+          >
+            {`Based on ${basedOn.venue.name} · ${formatDate(basedOn.eventDate)}`.toUpperCase()}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const ellipsis = {
+  display: 'block',
+  overflow: 'hidden',
+  whiteSpace: 'nowrap',
+  textOverflow: 'ellipsis',
+} as const;
 
 /** Long artist names get smaller type so they fit on two lines at most. */
 function getTitleSize(name: string): number {

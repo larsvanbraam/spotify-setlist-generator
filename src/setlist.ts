@@ -234,6 +234,8 @@ export function formatLocation(concert: Concert): string {
   return `${concert.venue.name}, ${city.name}, ${city.country.code}`;
 }
 
-export function getPlaylistName(concert: Concert): string {
-  return `${concert.artist.name} - ${concert.venue.name} - ${toIsoDate(concert.eventDate)}`;
+/** @param preShow Marks a predicted setlist for an upcoming show. */
+export function getPlaylistName(concert: Concert, preShow = false): string {
+  const name = `${concert.artist.name} - ${concert.venue.name} - ${toIsoDate(concert.eventDate)}`;
+  return preShow ? `Pre-show: ${name}` : name;
 }

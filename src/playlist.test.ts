@@ -44,11 +44,33 @@ describe('createSetlistPlaylist', () => {
       countryName: 'Netherlands',
       date: '2024-06-23',
     });
-    await createSetlistPlaylist(spotify as unknown as SpotifyClient, edited, [], () => {}, concert);
+    await createSetlistPlaylist(spotify as unknown as SpotifyClient, edited, [], () => {}, {
+      basedOn: concert,
+    });
 
     expect(spotify.createPlaylist).toHaveBeenCalledWith(
       'Radiohead - AFAS Live - 2024-06-23',
       `Based on the setlist of Radiohead at Ziggo Dome, Amsterdam, NL on 2024-06-21. ${concert.url}`,
+    );
+  });
+
+  it('marks a pre-show playlist as a prediction for the upcoming show', async () => {
+    const spotify = fakeSpotify();
+    const upcoming = withDetails(concert, {
+      artistName: 'Radiohead',
+      venueName: 'AFAS Live',
+      cityName: 'Amsterdam',
+      countryName: 'Netherlands',
+      date: '2024-06-23',
+    });
+    await createSetlistPlaylist(spotify as unknown as SpotifyClient, upcoming, [], () => {}, {
+      basedOn: concert,
+      preShow: true,
+    });
+
+    expect(spotify.createPlaylist).toHaveBeenCalledWith(
+      'Pre-show: Radiohead - AFAS Live - 2024-06-23',
+      `Predicted setlist for Radiohead at AFAS Live, Amsterdam, NL on 2024-06-23, based on the setlist of Radiohead at Ziggo Dome, Amsterdam, NL on 2024-06-21. ${concert.url}`,
     );
   });
 });

@@ -49,23 +49,31 @@ export async function matchSong(
   };
 }
 
+export type PlaylistOptions = {
+  /**
+   * The setlist.fm concert, when `concert` has edited details (e.g. a show with the same setlist
+   * that isn't on setlist.fm). The description then credits the original setlist.
+   */
+  basedOn?: Concert;
+  /**
+   * A playlist to get to know the songs before an upcoming show: `concert` is that show and its
+   * songs are the ones `basedOn` (or `concert` itself) played, as a prediction.
+   */
+  preShow?: boolean;
+};
+
 export async function createSetlistPlaylist(
   spotify: SpotifyClient,
   concert: Concert,
   matches: Array<Match>,
   onStep: (step: string) => void,
-  /**
-   * The setlist.fm concert, when `concert` has edited details (e.g. a show with the same setlist
-   * that isn't on setlist.fm). The description then credits the original setlist.
-   */
-  basedOn?: Concert,
+  options: PlaylistOptions = {},
 ): Promise<string> {
+  const { preShow = false } = options;
   onStep('Creating playlist');
   const playlist = await spotify.createPlaylist(
-    getPlaylistName(concert),
-    basedOn
-      ? `Based on the setlist of ${basedOn.artist.name} at ${formatLocation(basedOn)} on ${toIsoDate(basedOn.eventDate)}. ${basedOn.url}`
-      : `Setlist of ${concert.artist.name} at ${formatLocation(concert)}. ${concert.url}`,
+    getPlaylistName(concert, preShow),
+    getDescription(concert, options),
   );
 
   onStep('Adding tracks');
@@ -76,10 +84,22 @@ export async function createSetlistPlaylist(
 
   onStep('Uploading cover');
   try {
-    await spotify.uploadCover(playlist.id, await renderCover(concert, matches));
+    await spotify.uploadCover(playlist.id, await renderCover(concert, matches, options));
   } catch {
     // A missing cover is not worth failing the whole playlist for.
   }
 
   return playlist.url;
+}
+
+function getDescription(concert: Concert, { basedOn, preShow }: PlaylistOptions): string {
+  const source = basedOn ?? concert;
+  const credit = `the setlist of ${source.artist.name} at ${formatLocation(source)} on ${toIsoDate(source.eventDate)}. ${source.url}`;
+
+  if (preShow) {
+    return `Predicted setlist for ${concert.artist.name} at ${formatLocation(concert)} on ${toIsoDate(concert.eventDate)}, based on ${credit}`;
+  }
+  return basedOn
+    ? `Based on ${credit}`
+    : `Setlist of ${concert.artist.name} at ${formatLocation(concert)}. ${concert.url}`;
 }

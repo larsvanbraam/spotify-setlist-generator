@@ -33,7 +33,11 @@ export function getTopAlbumImages(tracks: Array<Track>, count = 4): Array<string
  * Builds a blurred collage of album covers: a 2×2 grid with four or more albums, otherwise the
  * most played album stretched over the whole cover.
  */
-export async function createArtwork(imageUrls: Array<string>, size: number): Promise<Artwork> {
+export async function createArtwork(
+  imageUrls: Array<string>,
+  size: number,
+  { monochrome = false } = {},
+): Promise<Artwork> {
   const images = await Promise.all(
     imageUrls.map(async (url) => Buffer.from(await (await fetch(url)).arrayBuffer())),
   );
@@ -61,14 +65,14 @@ export async function createArtwork(imageUrls: Array<string>, size: number): Pro
   }
 
   const { dominant } = await sharp(collage).stats();
-  const background = await sharp(collage)
+  let background = sharp(collage)
     .blur(size / 24)
-    .modulate({ brightness: 0.55, saturation: 1.3 })
-    .png()
-    .toBuffer();
+    .modulate({ brightness: 0.55, saturation: 1.3 });
+  if (monochrome) background = background.grayscale();
+  const backgroundPng = await background.png().toBuffer();
 
   return {
-    background: `data:image/png;base64,${background.toString('base64')}`,
+    background: `data:image/png;base64,${backgroundPng.toString('base64')}`,
     accent: toAccent(dominant.r, dominant.g, dominant.b),
   };
 }
