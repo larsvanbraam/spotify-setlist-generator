@@ -2,13 +2,14 @@ import { Box, Text, useApp, useInput, useWindowSize } from 'ink';
 import { useEffect, useState } from 'react';
 
 import type { Env } from '../env.ts';
-import { createSetlistPlaylist, matchSongs } from '../playlist.ts';
+import { createSetlistPlaylist, matchSong, matchSongs } from '../playlist.ts';
 import type { Match } from '../playlist.ts';
 import {
   formatLocation,
   getPlaylistName,
   getSongs,
   searchConcerts,
+  splitMedley,
   toIsoDate,
 } from '../setlist.ts';
 import type { Concert, ConcertQuery } from '../setlist.ts';
@@ -30,7 +31,14 @@ type Screen =
   | { name: 'loading'; label: string }
   | { name: 'concerts' }
   | { name: 'matching'; concert: Concert; matches: Array<Match | undefined> }
-  | { name: 'review'; concert: Concert; matches: Array<Match>; index: number }
+  | {
+      name: 'review';
+      concert: Concert;
+      matches: Array<Match>;
+      index: number;
+      /** Set while a medley's songs are being looked up. */
+      splitting?: boolean;
+    }
   | { name: 'pick'; concert: Concert; matches: Array<Match>; index: number }
   | { name: 'creating'; concert: Concert; step: string }
   | { name: 'done'; concert: Concert; matches: Array<Match>; url: string }
@@ -112,6 +120,23 @@ export function App({
     }
   };
 
+  /** Replaces the medley at `index` with its individual songs, each matched on Spotify. */
+  const split = async (concert: Concert, index: number, match: Match) => {
+    const songs = splitMedley(match.song);
+    if (songs.length < 2) return;
+    setScreen((current) => (current.name === 'review' ? { ...current, splitting: true } : current));
+    try {
+      const parts = await Promise.all(songs.map((song) => matchSong(spotify!, concert, song)));
+      setScreen((current) =>
+        current.name === 'review'
+          ? { ...current, splitting: false, matches: current.matches.toSpliced(index, 1, ...parts) }
+          : current,
+      );
+    } catch (error) {
+      fail(error);
+    }
+  };
+
   const create = async (concert: Concert, matches: Array<Match>) => {
     setScreen({ name: 'creating', concert, step: 'Creating playlist' });
     try {
@@ -128,7 +153,7 @@ export function App({
   useInput(
     (input, key) => {
       if (input === 'q') return exit();
-      if (screen.name === 'review') {
+      if (screen.name === 'review' && !screen.splitting) {
         // Update from the latest screen, key repeat can fire several times before a re-render.
         const move = (delta: number) =>
           setScreen((current) =>
@@ -142,6 +167,7 @@ export function App({
         if (key.upArrow || input === 'k') move(-1);
         if (key.downArrow || input === 'j') move(1);
         if (key.return) setScreen({ ...screen, name: 'pick' });
+        if (input === 's') void split(screen.concert, screen.index, screen.matches[screen.index]!);
         if (input === 'c' && screen.matches.some((match) => match.track)) {
           void create(screen.concert, screen.matches);
         }
@@ -223,17 +249,22 @@ export function App({
             />
           </Box>
           <MatchList
-            songs={getSongs(screen.concert)}
+            songs={
+              // Review can split medleys, so its songs come from the matches.
+              screen.name === 'review'
+                ? screen.matches.map((match) => match.song)
+                : getSongs(screen.concert)
+            }
             matches={screen.matches}
             limit={listLimit}
             selectedIndex={screen.name === 'review' ? screen.index : undefined}
           />
-          {screen.name === 'matching' ? (
+          {screen.name === 'matching' || screen.splitting ? (
             <Box marginTop={1}>
               <Spinner label="Finding songs on Spotify…" />
             </Box>
           ) : (
-            <ReviewSummary matches={screen.matches} />
+            <ReviewSummary matches={screen.matches} selected={screen.matches[screen.index]!} />
           )}
         </Box>
       )}
@@ -301,7 +332,7 @@ function ConcertTitle({ concert }: { concert: Concert }) {
   );
 }
 
-function ReviewSummary({ matches }: { matches: Array<Match> }) {
+function ReviewSummary({ matches, selected }: { matches: Array<Match>; selected: Match }) {
   const found = matches.filter((match) => match.track).length;
   const skipped = matches.filter((match) => match.skipped).length;
   const missing = matches.length - found - skipped;
@@ -320,6 +351,9 @@ function ReviewSummary({ matches }: { matches: Array<Match> }) {
         hints={[
           ['↑↓', 'navigate'],
           ['enter', 'change track'],
+          ...(splitMedley(selected.song).length > 1
+            ? [['s', 'split medley'] as [string, string]]
+            : []),
           ...(found > 0 ? [['c', 'create playlist'] as [string, string]] : []),
           ['esc', 'pick another concert'],
           ['q', 'quit'],

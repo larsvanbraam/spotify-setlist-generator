@@ -27,10 +27,7 @@ export async function matchSongs(
   const worker = async () => {
     while (next < songs.length) {
       const index = next++;
-      const song = songs[index]!;
-      const track = await spotify.searchTrack(song.name, song.cover?.name ?? concert.artist.name);
-
-      matches[index] = { song, track };
+      matches[index] = await matchSong(spotify, concert, songs[index]!);
       onMatch(matches[index], index);
     }
   };
@@ -38,6 +35,18 @@ export async function matchSongs(
   await Promise.all(Array.from({ length: Math.min(concurrency, songs.length) }, worker));
 
   return matches;
+}
+
+/** Looks up a single song on Spotify, searching covers under the original artist. */
+export async function matchSong(
+  spotify: SpotifyClient,
+  concert: Concert,
+  song: Song,
+): Promise<Match> {
+  return {
+    song,
+    track: await spotify.searchTrack(song.name, song.cover?.name ?? concert.artist.name),
+  };
 }
 
 export async function createSetlistPlaylist(

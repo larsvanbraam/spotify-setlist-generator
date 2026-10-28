@@ -154,6 +154,19 @@ export function getSongs(concert: Concert): Array<Song> {
   return (concert.sets.set ?? []).flatMap((set) => set.song).filter((song) => song.name.trim());
 }
 
+/**
+ * Splits a medley into its songs. setlist.fm writes medleys as "Song A / Song B / Song C"; only a
+ * slash with spaces around it counts, so titles like "AC/DC" or "Either/Or" stay intact.
+ * Returns a single song for anything that isn't a medley.
+ */
+export function splitMedley(song: Song): Array<Song> {
+  const names = song.name
+    .split(' / ')
+    .map((name) => name.trim())
+    .filter(Boolean);
+  return names.length > 1 ? names.map((name) => ({ ...song, name })) : [song];
+}
+
 /** Converts setlist.fm's dd-MM-yyyy into a sortable yyyy-MM-dd. */
 export function toIsoDate(eventDate: string): string {
   const [day, month, year] = eventDate.split('-');

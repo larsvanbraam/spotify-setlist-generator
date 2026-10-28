@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vite-plus/test';
 
-import { getPlaylistName, getSongs, toIsoDate } from './setlist.ts';
+import { getPlaylistName, getSongs, splitMedley, toIsoDate } from './setlist.ts';
 import type { Concert } from './setlist.ts';
 
 const concert = {
@@ -23,5 +23,19 @@ describe('setlist', () => {
 
   it('builds a sortable playlist name', () => {
     expect(getPlaylistName(concert)).toBe('Radiohead - Ziggo Dome - 2024-06-21');
+  });
+
+  it('splits medleys into separate songs, keeping cover info', () => {
+    const cover = { name: 'Original Artist' } as Concert['artist'];
+    expect(splitMedley({ name: "Ce n'est Rien  / Gods / Number 13", cover })).toEqual([
+      { name: "Ce n'est Rien", cover },
+      { name: 'Gods', cover },
+      { name: 'Number 13', cover },
+    ]);
+  });
+
+  it('leaves slashes without spaces and regular songs alone', () => {
+    expect(splitMedley({ name: 'AC/DC' })).toEqual([{ name: 'AC/DC' }]);
+    expect(splitMedley({ name: 'Creep' })).toEqual([{ name: 'Creep' }]);
   });
 });

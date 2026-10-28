@@ -1,6 +1,7 @@
 import { Box, Text } from 'ink';
 
 import type { Match } from '../../playlist.ts';
+import { splitMedley } from '../../setlist.ts';
 import type { Song } from '../../setlist.ts';
 import { theme } from '../theme.ts';
 
@@ -46,6 +47,7 @@ export function MatchList({ songs, matches, limit, selectedIndex }: Props) {
             <Text bold={isSelected} color={match ? undefined : theme.muted}>
               {song.name}
             </Text>
+            {splitMedley(song).length > 1 && <Text color={theme.warning}> [medley]</Text>}
             {match?.track && (
               <Text color={theme.muted}>
                 {'  '}→ {match.track.name} · {artists}
