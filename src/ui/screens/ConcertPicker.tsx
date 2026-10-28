@@ -1,8 +1,8 @@
 import { Box, Text, useInput, useWindowSize } from 'ink';
 import { useState } from 'react';
 
-import { formatLocation, getSongs, toIsoDate } from '../../setlist.ts';
-import type { Concert } from '../../setlist.ts';
+import { formatFilters, formatLocation, getSongs, toIsoDate } from '../../setlist.ts';
+import type { Concert, ConcertQuery } from '../../setlist.ts';
 import { KeyHints } from '../components/KeyHints.tsx';
 import { Select } from '../components/Select.tsx';
 import { Spinner } from '../components/Spinner.tsx';
@@ -12,7 +12,7 @@ const LOAD_MORE = 'load-more';
 
 type Props = {
   concerts: Array<Concert>;
-  year?: number;
+  query: ConcertQuery;
   hasMore: boolean;
   onSubmit: (concert: Concert) => void;
   onCancel: () => void;
@@ -20,7 +20,7 @@ type Props = {
   onLoadMore: () => Promise<Array<Concert>>;
 };
 
-export function ConcertPicker({ concerts, year, hasMore, onSubmit, onCancel, onLoadMore }: Props) {
+export function ConcertPicker({ concerts, query, hasMore, onSubmit, onCancel, onLoadMore }: Props) {
   const [highlighted, setHighlighted] = useState<Concert | typeof LOAD_MORE>(concerts[0]!);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string>();
@@ -57,7 +57,7 @@ export function ConcertPicker({ concerts, year, hasMore, onSubmit, onCancel, onL
       <Text>
         Found <Text color={theme.accent}>{concerts.length}</Text>
         {hasMore && '+'} setlists for <Text bold>{concerts[0]!.artist.name}</Text>
-        {year && <Text> in {year}</Text>}
+        {formatFilters(query)}
       </Text>
       <Box gap={2}>
         <Box flexDirection="column" width={showPreview ? '55%' : '100%'}>
@@ -93,7 +93,7 @@ export function ConcertPicker({ concerts, year, hasMore, onSubmit, onCancel, onL
         )}
       </Box>
       {!hasMore && (
-        <Text color={theme.muted}>No older setlists on setlist.fm{year && ` for ${year}`}.</Text>
+        <Text color={theme.muted}>No older setlists on setlist.fm{formatFilters(query)}.</Text>
       )}
       {error && <Text color={theme.error}>✗ {error}</Text>}
       <KeyHints

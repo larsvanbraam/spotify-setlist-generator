@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vite-plus/test';
 
-import { getPlaylistName, getSongs, splitMedley, toIsoDate } from './setlist.ts';
+import { formatFilters, getPlaylistName, getSongs, splitMedley, toIsoDate } from './setlist.ts';
 import type { Concert } from './setlist.ts';
 
 const concert = {
@@ -37,5 +37,13 @@ describe('setlist', () => {
   it('leaves slashes without spaces and regular songs alone', () => {
     expect(splitMedley({ name: 'AC/DC' })).toEqual([{ name: 'AC/DC' }]);
     expect(splitMedley({ name: 'Creep' })).toEqual([{ name: 'Creep' }]);
+  });
+
+  it('describes the optional search filters', () => {
+    expect(formatFilters({ artistName: 'Radiohead' })).toBe('');
+    expect(formatFilters({ artistName: 'Radiohead', year: 2017 })).toBe(' in 2017');
+    expect(formatFilters({ artistName: 'Radiohead', cityName: 'Amsterdam', year: 2017 })).toBe(
+      ' in Amsterdam in 2017',
+    );
   });
 });

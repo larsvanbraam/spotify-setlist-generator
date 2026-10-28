@@ -5,6 +5,7 @@ import type { Env } from '../env.ts';
 import { createSetlistPlaylist, matchSong, matchSongs } from '../playlist.ts';
 import type { Match } from '../playlist.ts';
 import {
+  formatFilters,
   formatLocation,
   getPlaylistName,
   getSongs,
@@ -77,15 +78,19 @@ export function App({
   }, []);
 
   const search = async (query: ConcertQuery) => {
-    const description = query.year
-      ? `“${query.artistName}” in ${query.year}`
-      : `“${query.artistName}”`;
+    const description = `“${query.artistName}”${formatFilters(query)}`;
     setQuery(query);
     setScreen({ name: 'loading', label: `Searching setlist.fm for ${description}` });
     try {
       const results = await searchConcerts(query, env.setlistApiKey);
       if (results.concerts.length === 0) {
-        setScreen({ name: 'search', notice: `No past setlists found for ${description}.` });
+        setScreen({
+          name: 'search',
+          notice:
+            `No past setlists found for ${description}.` +
+            // setlist.fm only matches complete city names.
+            (query.cityName ? ' Check that the city is spelled out in full.' : ''),
+        });
         return;
       }
       setConcerts(results.concerts);
@@ -213,7 +218,7 @@ export function App({
       {screen.name === 'concerts' && (
         <ConcertPicker
           concerts={concerts}
-          year={query?.year}
+          query={query!}
           hasMore={nextPage !== undefined}
           onSubmit={match}
           onCancel={() => setScreen({ name: 'search' })}

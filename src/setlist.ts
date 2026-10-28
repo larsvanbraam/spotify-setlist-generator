@@ -52,6 +52,8 @@ export type ConcertQuery = {
   artistName: string;
   /** Only return setlists from this year. */
   year?: number;
+  /** Only return setlists from a city with this name. */
+  cityName?: string;
 };
 
 export type ConcertBatch = {
@@ -65,7 +67,7 @@ export type ConcertBatch = {
  * setlists. Pass the returned `nextPage` back in to load older setlists.
  */
 export async function searchConcerts(
-  { artistName, year }: ConcertQuery,
+  { artistName, year, cityName }: ConcertQuery,
   apiKey: string,
   startPage = 1,
 ): Promise<ConcertBatch> {
@@ -76,6 +78,7 @@ export async function searchConcerts(
     const url = new URL(`${API_URL}/search/setlists`);
     url.searchParams.set('artistName', artistName);
     if (year) url.searchParams.set('year', String(year));
+    if (cityName) url.searchParams.set('cityName', cityName);
     url.searchParams.set('p', String(page));
 
     const response = await fetchWithRetry(url, apiKey);
@@ -171,6 +174,11 @@ export function splitMedley(song: Song): Array<Song> {
 export function toIsoDate(eventDate: string): string {
   const [day, month, year] = eventDate.split('-');
   return `${year}-${month}-${day}`;
+}
+
+/** Describes the optional filters of a query, e.g. " in Amsterdam in 2017", or "" without any. */
+export function formatFilters({ cityName, year }: ConcertQuery): string {
+  return [cityName, year].map((filter) => (filter ? ` in ${filter}` : '')).join('');
 }
 
 export function formatLocation(concert: Concert): string {
