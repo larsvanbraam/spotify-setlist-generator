@@ -7,13 +7,15 @@ import type { Match } from '../playlist.ts';
 import {
   formatFilters,
   formatLocation,
+  getDetails,
   getPlaylistName,
   getSongs,
   searchConcerts,
   splitMedley,
   toIsoDate,
+  withDetails,
 } from '../setlist.ts';
-import type { Concert, ConcertQuery } from '../setlist.ts';
+import type { Concert, ConcertDetails, ConcertQuery } from '../setlist.ts';
 import { authenticate, refreshToken } from '../spotify/auth.ts';
 import { SpotifyClient } from '../spotify/client.ts';
 import { Header } from './components/Header.tsx';
@@ -21,6 +23,7 @@ import { KeyHints } from './components/KeyHints.tsx';
 import { ProgressBar } from './components/ProgressBar.tsx';
 import { Spinner } from './components/Spinner.tsx';
 import { ConcertPicker } from './screens/ConcertPicker.tsx';
+import { DetailsForm } from './screens/DetailsForm.tsx';
 import { MatchList } from './screens/MatchList.tsx';
 import { SearchForm } from './screens/SearchForm.tsx';
 import { TrackPicker } from './screens/TrackPicker.tsx';
@@ -42,7 +45,7 @@ type Screen =
     }
   | { name: 'pick'; concert: Concert; matches: Array<Match>; index: number }
   | { name: 'creating'; concert: Concert; step: string }
-  | { name: 'done'; concert: Concert; matches: Array<Match>; url: string }
+  | { name: 'done'; title: string; matches: Array<Match>; url: string }
   | { name: 'error'; message: string };
 
 export function App({
@@ -57,6 +60,11 @@ export function App({
   const [query, setQuery] = useState<ConcertQuery>();
   const [concerts, setConcerts] = useState<Array<Concert>>([]);
   const [nextPage, setNextPage] = useState<number>();
+  /** Edited concert details for the playlist, `undefined` uses the ones from setlist.fm. */
+  const [details, setDetails] = useState<ConcertDetails>();
+  const [editingDetails, setEditingDetails] = useState(false);
+  /** The concert as it ends up in the playlist name, description and cover. */
+  const forPlaylist = (concert: Concert) => (details ? withDetails(concert, details) : concert);
   const { exit } = useApp();
   const { rows } = useWindowSize();
   const listLimit = Math.max(5, Math.min(16, rows - 12));
@@ -117,6 +125,7 @@ export function App({
         matches[index] = match;
         setScreen({ name: 'matching', concert, matches: [...matches] });
       });
+      setDetails(undefined);
       // Start on the first missing song, that's the one you most likely want to fix.
       const firstMissing = result.findIndex((match) => !match.track);
       setScreen({ name: 'review', concert, matches: result, index: Math.max(0, firstMissing) });
@@ -142,14 +151,19 @@ export function App({
     }
   };
 
-  const create = async (concert: Concert, matches: Array<Match>) => {
+  /** @param basedOn The setlist.fm concert, when the details of `concert` were edited. */
+  const create = async (concert: Concert, matches: Array<Match>, basedOn?: Concert) => {
     setScreen({ name: 'creating', concert, step: 'Creating playlist' });
     try {
-      const url = await createSetlistPlaylist(spotify!, concert, matches, (step) =>
-        setScreen({ name: 'creating', concert, step }),
+      const url = await createSetlistPlaylist(
+        spotify!,
+        concert,
+        matches,
+        (step) => setScreen({ name: 'creating', concert, step }),
+        basedOn,
       );
       onPlaylistCreated(url);
-      setScreen({ name: 'done', concert, matches, url });
+      setScreen({ name: 'done', title: getPlaylistName(concert), matches, url });
     } catch (error) {
       fail(error);
     }
@@ -173,8 +187,13 @@ export function App({
         if (key.downArrow || input === 'j') move(1);
         if (key.return) setScreen({ ...screen, name: 'pick' });
         if (input === 's') void split(screen.concert, screen.index, screen.matches[screen.index]!);
+        if (input === 'e') setEditingDetails(true);
         if (input === 'c' && screen.matches.some((match) => match.track)) {
-          void create(screen.concert, screen.matches);
+          void create(
+            forPlaylist(screen.concert),
+            screen.matches,
+            details ? screen.concert : undefined,
+          );
         }
         if (key.escape) setScreen({ name: 'concerts' });
       }
@@ -189,7 +208,7 @@ export function App({
         else exit();
       }
     },
-    { isActive: ['review', 'done', 'error'].includes(screen.name) },
+    { isActive: ['review', 'done', 'error'].includes(screen.name) && !editingDetails },
   );
 
   return (
@@ -246,7 +265,20 @@ export function App({
 
       {(screen.name === 'matching' || screen.name === 'review') && (
         <Box flexDirection="column">
-          <ConcertTitle concert={screen.concert} />
+          <ConcertTitle concert={forPlaylist(screen.concert)} />
+          {screen.name === 'review' && (
+            <Text>
+              <Text color={theme.muted}>Playlist: </Text>
+              {getPlaylistName(forPlaylist(screen.concert))}
+              {details && (
+                <Text color={theme.muted}>
+                  {' '}
+                  (edited, based on {screen.concert.venue.name} ·{' '}
+                  {toIsoDate(screen.concert.eventDate)})
+                </Text>
+              )}
+            </Text>
+          )}
           <Box marginY={1}>
             <ProgressBar
               value={screen.matches.filter(Boolean).length}
@@ -268,6 +300,20 @@ export function App({
             <Box marginTop={1}>
               <Spinner label="Finding songs on Spotify…" />
             </Box>
+          ) : editingDetails ? (
+            <DetailsForm
+              original={getDetails(screen.concert)}
+              details={details ?? getDetails(screen.concert)}
+              onSubmit={(edited) => {
+                const original = getDetails(screen.concert);
+                const changed = (Object.keys(original) as Array<keyof ConcertDetails>).some(
+                  (key) => edited[key] !== original[key],
+                );
+                setDetails(changed ? edited : undefined);
+                setEditingDetails(false);
+              }}
+              onCancel={() => setEditingDetails(false)}
+            />
           ) : (
             <ReviewSummary matches={screen.matches} selected={screen.matches[screen.index]!} />
           )}
@@ -294,7 +340,7 @@ export function App({
             <Text color={theme.accent} bold>
               ✓ Playlist created
             </Text>
-            <Text>{getPlaylistName(screen.concert)}</Text>
+            <Text>{screen.title}</Text>
             <Text color={theme.muted}>
               {screen.matches.filter((match) => match.track).length} tracks ·{' '}
               <Text color={theme.accentAlt}>{screen.url}</Text>
@@ -356,6 +402,7 @@ function ReviewSummary({ matches, selected }: { matches: Array<Match>; selected:
         hints={[
           ['↑↓', 'navigate'],
           ['enter', 'change track'],
+          ['e', 'edit details'],
           ...(splitMedley(selected.song).length > 1
             ? [['s', 'split medley'] as [string, string]]
             : []),

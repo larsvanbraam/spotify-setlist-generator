@@ -181,6 +181,54 @@ export function formatFilters({ cityName, year }: ConcertQuery): string {
   return [cityName, year].map((filter) => (filter ? ` in ${filter}` : '')).join('');
 }
 
+/** The parts of a concert that end up in the playlist name, description and cover. */
+export type ConcertDetails = {
+  artistName: string;
+  venueName: string;
+  cityName: string;
+  countryName: string;
+  /** yyyy-MM-dd */
+  date: string;
+};
+
+export function getDetails(concert: Concert): ConcertDetails {
+  return {
+    artistName: concert.artist.name,
+    venueName: concert.venue.name,
+    cityName: concert.venue.city.name,
+    countryName: concert.venue.city.country.name,
+    date: toIsoDate(concert.eventDate),
+  };
+}
+
+/**
+ * Returns a copy of the concert with its details replaced, e.g. for a show with the same setlist
+ * that isn't on setlist.fm. The songs stay the same.
+ */
+export function withDetails(concert: Concert, details: ConcertDetails): Concert {
+  const { country } = concert.venue.city;
+  const [year, month, day] = details.date.split('-');
+
+  return {
+    ...concert,
+    artist: { ...concert.artist, name: details.artistName },
+    eventDate: `${day}-${month}-${year}`,
+    venue: {
+      ...concert.venue,
+      name: details.venueName,
+      city: {
+        ...concert.venue.city,
+        name: details.cityName,
+        country:
+          details.countryName === country.name
+            ? country
+            : // We don't know the code of a typed country, so show its name where the code goes.
+              { code: details.countryName, name: details.countryName },
+      },
+    },
+  };
+}
+
 export function formatLocation(concert: Concert): string {
   const { city } = concert.venue;
   return `${concert.venue.name}, ${city.name}, ${city.country.code}`;

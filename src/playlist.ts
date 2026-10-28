@@ -1,5 +1,5 @@
 import { renderCover } from './cover/cover.tsx';
-import { formatLocation, getPlaylistName, getSongs } from './setlist.ts';
+import { formatLocation, getPlaylistName, getSongs, toIsoDate } from './setlist.ts';
 import type { Concert, Song } from './setlist.ts';
 import type { SpotifyClient, Track } from './spotify/client.ts';
 
@@ -54,11 +54,18 @@ export async function createSetlistPlaylist(
   concert: Concert,
   matches: Array<Match>,
   onStep: (step: string) => void,
+  /**
+   * The setlist.fm concert, when `concert` has edited details (e.g. a show with the same setlist
+   * that isn't on setlist.fm). The description then credits the original setlist.
+   */
+  basedOn?: Concert,
 ): Promise<string> {
   onStep('Creating playlist');
   const playlist = await spotify.createPlaylist(
     getPlaylistName(concert),
-    `Setlist of ${concert.artist.name} at ${formatLocation(concert)}. ${concert.url}`,
+    basedOn
+      ? `Based on the setlist of ${basedOn.artist.name} at ${formatLocation(basedOn)} on ${toIsoDate(basedOn.eventDate)}. ${basedOn.url}`
+      : `Setlist of ${concert.artist.name} at ${formatLocation(concert)}. ${concert.url}`,
   );
 
   onStep('Adding tracks');

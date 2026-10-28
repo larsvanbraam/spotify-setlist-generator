@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vite-plus/test';
 
-import { formatFilters, getPlaylistName, getSongs, splitMedley, toIsoDate } from './setlist.ts';
+import {
+  formatFilters,
+  formatLocation,
+  getDetails,
+  getPlaylistName,
+  getSongs,
+  splitMedley,
+  toIsoDate,
+  withDetails,
+} from './setlist.ts';
 import type { Concert } from './setlist.ts';
 
 const concert = {
@@ -45,5 +54,27 @@ describe('setlist', () => {
     expect(formatFilters({ artistName: 'Radiohead', cityName: 'Amsterdam', year: 2017 })).toBe(
       ' in Amsterdam in 2017',
     );
+  });
+
+  it('replaces concert details while keeping the setlist', () => {
+    const original = {
+      ...concert,
+      venue: {
+        ...concert.venue,
+        city: { ...concert.venue.city, country: { code: 'NL', name: 'Netherlands' } },
+      },
+    } as Concert;
+    const details = { ...getDetails(original), venueName: 'AFAS Live', date: '2024-06-23' };
+    const edited = withDetails(original, details);
+
+    expect(getDetails(edited)).toEqual(details);
+    expect(getPlaylistName(edited)).toBe('Radiohead - AFAS Live - 2024-06-23');
+    expect(formatLocation(edited)).toBe('AFAS Live, Amsterdam, NL');
+    expect(getSongs(edited)).toEqual(getSongs(original));
+  });
+
+  it('shows a typed country by name, since its code is unknown', () => {
+    const edited = withDetails(concert, { ...getDetails(concert), countryName: 'Belgium' });
+    expect(formatLocation(edited)).toBe('Ziggo Dome, Amsterdam, Belgium');
   });
 });
