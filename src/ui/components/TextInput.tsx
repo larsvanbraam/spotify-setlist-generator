@@ -1,33 +1,48 @@
 import { Text, useInput } from 'ink';
-import { useState } from 'react';
 
 import { theme } from '../theme.ts';
 
 type Props = {
+  value: string;
+  onChange: (value: string) => void;
+  onSubmit: () => void;
   placeholder?: string;
-  onSubmit: (value: string) => void;
+  /** Only the active input receives key presses and shows a cursor. */
+  isActive?: boolean;
+  /** Typed or pasted input that doesn't match is ignored. */
+  allow?: RegExp;
+  maxLength?: number;
 };
 
-export function TextInput({ placeholder = '', onSubmit }: Props) {
-  const [value, setValue] = useState('');
-
-  useInput((input, key) => {
-    if (key.return) {
-      if (value.trim()) onSubmit(value.trim());
-    } else if (key.backspace || key.delete) {
-      setValue((current) => current.slice(0, -1));
-    } else if (key.ctrl && input === 'u') {
-      setValue('');
-    } else if (input && !key.ctrl && !key.meta && !key.escape) {
-      setValue((current) => current + input);
-    }
-  });
+export function TextInput({
+  value,
+  onChange,
+  onSubmit,
+  placeholder = '',
+  isActive = true,
+  allow,
+  maxLength = Infinity,
+}: Props) {
+  useInput(
+    (input, key) => {
+      if (key.return) {
+        onSubmit();
+      } else if (key.backspace || key.delete) {
+        onChange(value.slice(0, -1));
+      } else if (key.ctrl && input === 'u') {
+        onChange('');
+      } else if (input && !key.ctrl && !key.meta && !key.escape && !key.tab) {
+        if (!allow || allow.test(input)) onChange((value + input).slice(0, maxLength));
+      }
+    },
+    { isActive },
+  );
 
   return (
     <Text>
-      <Text color={theme.accent}>❯ </Text>
+      <Text color={isActive ? theme.accent : theme.muted}>❯ </Text>
       {value ? <Text>{value}</Text> : <Text color={theme.muted}>{placeholder}</Text>}
-      <Text inverse> </Text>
+      {isActive && <Text inverse> </Text>}
     </Text>
   );
 }

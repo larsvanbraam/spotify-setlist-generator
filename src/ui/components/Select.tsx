@@ -1,5 +1,5 @@
 import { Box, Text, useInput } from 'ink';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 
 import { theme } from '../theme.ts';
@@ -23,9 +23,12 @@ export function Select<T>({
   limit = 10,
 }: Props<T>) {
   const [index, setIndex] = useState(0);
+  // Key repeat can deliver several presses before a re-render, so track the latest index in a ref.
+  const indexRef = useRef(index);
 
   const move = (delta: number) => {
-    const nextIndex = Math.max(0, Math.min(items.length - 1, index + delta));
+    const nextIndex = Math.max(0, Math.min(items.length - 1, indexRef.current + delta));
+    indexRef.current = nextIndex;
     setIndex(nextIndex);
     onHighlight?.(items[nextIndex]!);
   };
@@ -35,7 +38,7 @@ export function Select<T>({
     else if (key.downArrow || input === 'j') move(1);
     else if (key.pageUp) move(-limit);
     else if (key.pageDown) move(limit);
-    else if (key.return) onSubmit(items[index]!);
+    else if (key.return) onSubmit(items[indexRef.current]!);
     else if (key.escape) onCancel?.();
   });
 

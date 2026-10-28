@@ -11,23 +11,23 @@ import {
   searchConcerts,
   toIsoDate,
 } from '../setlist.ts';
-import type { Concert } from '../setlist.ts';
+import type { Concert, ConcertQuery } from '../setlist.ts';
 import { authenticate } from '../spotify/auth.ts';
 import { SpotifyClient } from '../spotify/client.ts';
 import { Header } from './components/Header.tsx';
 import { KeyHints } from './components/KeyHints.tsx';
 import { ProgressBar } from './components/ProgressBar.tsx';
 import { Spinner } from './components/Spinner.tsx';
-import { TextInput } from './components/TextInput.tsx';
 import { ConcertPicker } from './screens/ConcertPicker.tsx';
 import { MatchList } from './screens/MatchList.tsx';
+import { SearchForm } from './screens/SearchForm.tsx';
 import { theme } from './theme.ts';
 
 type Screen =
   | { name: 'auth'; loginUrl?: string }
   | { name: 'search'; notice?: string }
   | { name: 'loading'; label: string }
-  | { name: 'concerts'; concerts: Array<Concert> }
+  | { name: 'concerts' }
   | { name: 'matching'; concert: Concert; matches: Array<Match | undefined> }
   | { name: 'review'; concert: Concert; matches: Array<Match> }
   | { name: 'creating'; concert: Concert; step: string }
@@ -43,7 +43,9 @@ export function App({
 }) {
   const [screen, setScreen] = useState<Screen>({ name: 'auth' });
   const [spotify, setSpotify] = useState<SpotifyClient>();
+  const [query, setQuery] = useState<ConcertQuery>();
   const [concerts, setConcerts] = useState<Array<Concert>>([]);
+  const [nextPage, setNextPage] = useState<number>();
   const { exit } = useApp();
   const { rows } = useWindowSize();
   const listLimit = Math.max(5, Math.min(16, rows - 12));
@@ -64,19 +66,32 @@ export function App({
       .catch(fail);
   }, []);
 
-  const search = async (artistName: string) => {
-    setScreen({ name: 'loading', label: `Searching setlist.fm for “${artistName}”` });
+  const search = async (query: ConcertQuery) => {
+    const description = query.year
+      ? `“${query.artistName}” in ${query.year}`
+      : `“${query.artistName}”`;
+    setQuery(query);
+    setScreen({ name: 'loading', label: `Searching setlist.fm for ${description}` });
     try {
-      const results = await searchConcerts(artistName, env.setlistApiKey);
-      if (results.length === 0) {
-        setScreen({ name: 'search', notice: `No past setlists found for “${artistName}”.` });
+      const results = await searchConcerts(query, env.setlistApiKey);
+      if (results.concerts.length === 0) {
+        setScreen({ name: 'search', notice: `No past setlists found for ${description}.` });
         return;
       }
-      setConcerts(results);
-      setScreen({ name: 'concerts', concerts: results });
+      setConcerts(results.concerts);
+      setNextPage(results.nextPage);
+      setScreen({ name: 'concerts' });
     } catch (error) {
       fail(error);
     }
+  };
+
+  const loadMore = async () => {
+    if (!query || !nextPage) return [];
+    const results = await searchConcerts(query, env.setlistApiKey, nextPage);
+    setConcerts((current) => [...current, ...results.concerts]);
+    setNextPage(results.nextPage);
+    return results.concerts;
   };
 
   const match = async (concert: Concert) => {
@@ -113,9 +128,13 @@ export function App({
         if (key.return && screen.matches.some((match) => match.track)) {
           void create(screen.concert, screen.matches);
         }
-        if (key.escape) setScreen({ name: 'concerts', concerts });
+        if (key.escape) setScreen({ name: 'concerts' });
       }
-      if (screen.name === 'done' && input === 'n') setScreen({ name: 'search' });
+      if (screen.name === 'done' && input === 'n') {
+        // A new playlist starts from an empty form; going back from other screens keeps the query.
+        setQuery(undefined);
+        setScreen({ name: 'search' });
+      }
       if (screen.name === 'error' && (key.return || key.escape)) {
         // Without a Spotify session there is nothing to go back to.
         if (spotify) setScreen({ name: 'search' });
@@ -143,26 +162,19 @@ export function App({
         ))}
 
       {screen.name === 'search' && (
-        <Box flexDirection="column">
-          {screen.notice && <Text color={theme.warning}>{screen.notice}</Text>}
-          <Text bold>Which artist did you see?</Text>
-          <TextInput placeholder="e.g. Radiohead" onSubmit={search} />
-          <KeyHints
-            hints={[
-              ['enter', 'search'],
-              ['ctrl+c', 'quit'],
-            ]}
-          />
-        </Box>
+        <SearchForm initialQuery={query} notice={screen.notice} onSubmit={search} />
       )}
 
       {screen.name === 'loading' && <Spinner label={screen.label} />}
 
       {screen.name === 'concerts' && (
         <ConcertPicker
-          concerts={screen.concerts}
+          concerts={concerts}
+          year={query?.year}
+          hasMore={nextPage !== undefined}
           onSubmit={match}
           onCancel={() => setScreen({ name: 'search' })}
+          onLoadMore={loadMore}
         />
       )}
 

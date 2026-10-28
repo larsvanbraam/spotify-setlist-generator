@@ -48,24 +48,49 @@ export type Concert = {
 const API_URL = 'https://api.setlist.fm/rest/1.0';
 const PAGES = 3; // setlist.fm returns 20 setlists per page
 
-/**
- * Fetches the most recent setlists for an artist, skipping future shows and empty setlists.
- */
-export async function searchConcerts(artistName: string, apiKey: string): Promise<Array<Concert>> {
-  const concerts: Array<Concert> = [];
+export type ConcertQuery = {
+  artistName: string;
+  /** Only return setlists from this year. */
+  year?: number;
+};
 
-  for (let page = 1; page <= PAGES; page++) {
+export type ConcertBatch = {
+  concerts: Array<Concert>;
+  /** The setlist.fm page to continue from, undefined when there are no more results. */
+  nextPage?: number;
+};
+
+/**
+ * Fetches a batch of the most recent setlists for an artist, skipping future shows and empty
+ * setlists. Pass the returned `nextPage` back in to load older setlists.
+ */
+export async function searchConcerts(
+  { artistName, year }: ConcertQuery,
+  apiKey: string,
+  startPage = 1,
+): Promise<ConcertBatch> {
+  const concerts: Array<Concert> = [];
+  let nextPage: number | undefined;
+
+  for (let page = startPage; page < startPage + PAGES; page++) {
     const url = new URL(`${API_URL}/search/setlists`);
     url.searchParams.set('artistName', artistName);
+    if (year) url.searchParams.set('year', String(year));
     url.searchParams.set('p', String(page));
 
     const response = await fetchWithRetry(url, apiKey);
 
     // setlist.fm answers 404 when a search has no (more) results.
-    if (response.status === 404) break;
+    if (response.status === 404) {
+      nextPage = undefined;
+      break;
+    }
     if (response.status === 429) {
-      // Already have results: show what we got rather than failing the whole search.
-      if (concerts.length > 0) break;
+      // Already have results: show what we got and let the next batch pick up from here.
+      if (concerts.length > 0) {
+        nextPage = page;
+        break;
+      }
       throw new Error(
         'setlist.fm rate limit reached. Wait a minute and try again (the daily limit resets at midnight UTC).',
       );
@@ -74,22 +99,32 @@ export async function searchConcerts(artistName: string, apiKey: string): Promis
       throw new Error(`setlist.fm request failed: ${response.status} ${response.statusText}`);
     }
 
-    const { setlist = [], total } = (await response.json()) as {
+    const {
+      setlist = [],
+      total,
+      itemsPerPage,
+    } = (await response.json()) as {
       setlist?: Array<Concert>;
       total: number;
+      itemsPerPage: number;
     };
     concerts.push(...setlist);
 
-    if (setlist.length === 0 || concerts.length >= total) break;
+    const hasMore = setlist.length > 0 && page * itemsPerPage < total;
+    nextPage = hasMore ? page + 1 : undefined;
+    if (!hasMore) break;
 
     // setlist.fm allows ~2 requests/second; leave plenty of headroom.
-    await sleep(1000);
+    if (page < startPage + PAGES - 1) await sleep(1000);
   }
 
   const today = new Date().toISOString().slice(0, 10);
-  return concerts.filter(
-    (concert) => getSongs(concert).length > 0 && toIsoDate(concert.eventDate) <= today,
-  );
+  return {
+    concerts: concerts.filter(
+      (concert) => getSongs(concert).length > 0 && toIsoDate(concert.eventDate) <= today,
+    ),
+    nextPage,
+  };
 }
 
 const MAX_RETRIES = 3;
