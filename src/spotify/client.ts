@@ -19,10 +19,15 @@ export type Track = {
  * the February 2026 Web API update (`/me/playlists`, `/playlists/{id}/items`).
  */
 export class SpotifyClient {
-  readonly #token: Token;
+  #token: Token;
+  readonly #refresh: (token: Token) => Promise<Token>;
+  /** Shared so concurrent requests wait for a single refresh. */
+  #refreshing?: Promise<void>;
 
-  constructor(token: Token) {
+  /** @param refresh Exchanges the token for a fresh one; access tokens only last an hour. */
+  constructor(token: Token, refresh: (token: Token) => Promise<Token>) {
     this.#token = token;
+    this.#refresh = refresh;
   }
 
   async searchTrack(track: string, artist: string): Promise<Track | undefined> {
@@ -76,10 +81,24 @@ export class SpotifyClient {
     });
   }
 
+  private async refreshToken(): Promise<void> {
+    this.#refreshing ??= this.#refresh(this.#token)
+      .then((token) => {
+        this.#token = token;
+      })
+      .finally(() => {
+        this.#refreshing = undefined;
+      });
+    return this.#refreshing;
+  }
+
   private async request<T = unknown>(
     path: string,
     init: Omit<RequestInit, 'headers'> & { headers?: Record<string, string> } = {},
+    isRetry = false,
   ): Promise<T> {
+    if (this.#token.expiresAt - 60_000 < Date.now()) await this.refreshToken();
+
     const response = await fetch(`${API_URL}${path}`, {
       ...init,
       headers: {
@@ -88,6 +107,12 @@ export class SpotifyClient {
         ...init.headers,
       },
     });
+
+    // The token can still be rejected early (e.g. revoked, or the clock is off): refresh once.
+    if (response.status === 401 && !isRetry) {
+      await this.refreshToken();
+      return this.request(path, init, true);
+    }
 
     if (response.status === 429) {
       const retryAfter = Number(response.headers.get('Retry-After') ?? 1);

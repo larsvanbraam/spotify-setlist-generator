@@ -13,7 +13,7 @@ import {
   toIsoDate,
 } from '../setlist.ts';
 import type { Concert, ConcertQuery } from '../setlist.ts';
-import { authenticate } from '../spotify/auth.ts';
+import { authenticate, refreshToken } from '../spotify/auth.ts';
 import { SpotifyClient } from '../spotify/client.ts';
 import { Header } from './components/Header.tsx';
 import { KeyHints } from './components/KeyHints.tsx';
@@ -70,7 +70,7 @@ export function App({
       onLoginRequired: (loginUrl) => setScreen({ name: 'auth', loginUrl }),
     })
       .then((token) => {
-        setSpotify(new SpotifyClient(token));
+        setSpotify(new SpotifyClient(token, (token) => refreshToken(env.spotifyClientId, token)));
         setScreen({ name: 'search' });
       })
       .catch(fail);

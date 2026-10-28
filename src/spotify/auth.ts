@@ -38,19 +38,24 @@ export async function authenticate(options: AuthOptions): Promise<Token> {
 
   if (cached) {
     try {
-      return await saveToken(
-        await requestToken(options.clientId, {
-          grant_type: 'refresh_token',
-          refresh_token: cached.refreshToken,
-        }),
-        cached.refreshToken,
-      );
+      return await refreshToken(options.clientId, cached);
     } catch {
       // Refresh token was revoked or expired, fall through to a fresh login.
     }
   }
 
   return saveToken(await login(options));
+}
+
+/** Trades the refresh token for a new access token and caches it. */
+export async function refreshToken(clientId: string, token: Token): Promise<Token> {
+  return saveToken(
+    await requestToken(clientId, {
+      grant_type: 'refresh_token',
+      refresh_token: token.refreshToken,
+    }),
+    token.refreshToken,
+  );
 }
 
 async function login({ clientId, redirectUri, onLoginRequired }: AuthOptions) {
