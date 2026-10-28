@@ -38,6 +38,16 @@ export class SpotifyClient {
     return data.tracks.items[0];
   }
 
+  /** Free-text track search, for picking an alternative by hand. */
+  async searchTracks(query: string, limit = 10): Promise<Array<Track>> {
+    const params = new URLSearchParams({ q: query, type: 'track', limit: String(limit) });
+    const data = await this.request<{ tracks: { items: Array<Track> } }>(
+      `/search?${params.toString()}`,
+    );
+
+    return data.tracks.items;
+  }
+
   async createPlaylist(name: string, description: string): Promise<{ id: string; url: string }> {
     const data = await this.request<{ id: string; external_urls: { spotify: string } }>(
       '/me/playlists',

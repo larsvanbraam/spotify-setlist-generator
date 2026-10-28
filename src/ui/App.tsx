@@ -21,6 +21,7 @@ import { Spinner } from './components/Spinner.tsx';
 import { ConcertPicker } from './screens/ConcertPicker.tsx';
 import { MatchList } from './screens/MatchList.tsx';
 import { SearchForm } from './screens/SearchForm.tsx';
+import { TrackPicker } from './screens/TrackPicker.tsx';
 import { theme } from './theme.ts';
 
 type Screen =
@@ -29,7 +30,8 @@ type Screen =
   | { name: 'loading'; label: string }
   | { name: 'concerts' }
   | { name: 'matching'; concert: Concert; matches: Array<Match | undefined> }
-  | { name: 'review'; concert: Concert; matches: Array<Match> }
+  | { name: 'review'; concert: Concert; matches: Array<Match>; index: number }
+  | { name: 'pick'; concert: Concert; matches: Array<Match>; index: number }
   | { name: 'creating'; concert: Concert; step: string }
   | { name: 'done'; concert: Concert; matches: Array<Match>; url: string }
   | { name: 'error'; message: string };
@@ -102,7 +104,9 @@ export function App({
         matches[index] = match;
         setScreen({ name: 'matching', concert, matches: [...matches] });
       });
-      setScreen({ name: 'review', concert, matches: result });
+      // Start on the first missing song, that's the one you most likely want to fix.
+      const firstMissing = result.findIndex((match) => !match.track);
+      setScreen({ name: 'review', concert, matches: result, index: Math.max(0, firstMissing) });
     } catch (error) {
       fail(error);
     }
@@ -125,7 +129,20 @@ export function App({
     (input, key) => {
       if (input === 'q') return exit();
       if (screen.name === 'review') {
-        if (key.return && screen.matches.some((match) => match.track)) {
+        // Update from the latest screen, key repeat can fire several times before a re-render.
+        const move = (delta: number) =>
+          setScreen((current) =>
+            current.name === 'review'
+              ? {
+                  ...current,
+                  index: Math.max(0, Math.min(current.matches.length - 1, current.index + delta)),
+                }
+              : current,
+          );
+        if (key.upArrow || input === 'k') move(-1);
+        if (key.downArrow || input === 'j') move(1);
+        if (key.return) setScreen({ ...screen, name: 'pick' });
+        if (input === 'c' && screen.matches.some((match) => match.track)) {
           void create(screen.concert, screen.matches);
         }
         if (key.escape) setScreen({ name: 'concerts' });
@@ -178,6 +195,24 @@ export function App({
         />
       )}
 
+      {screen.name === 'pick' && (
+        <TrackPicker
+          spotify={spotify!}
+          match={screen.matches[screen.index]!}
+          artistName={screen.matches[screen.index]!.song.cover?.name ?? screen.concert.artist.name}
+          limit={listLimit}
+          onSubmit={(track) => {
+            const matches = screen.matches.with(screen.index, {
+              song: screen.matches[screen.index]!.song,
+              track,
+              skipped: !track,
+            });
+            setScreen({ ...screen, name: 'review', matches });
+          }}
+          onCancel={() => setScreen({ ...screen, name: 'review' })}
+        />
+      )}
+
       {(screen.name === 'matching' || screen.name === 'review') && (
         <Box flexDirection="column">
           <ConcertTitle concert={screen.concert} />
@@ -187,7 +222,12 @@ export function App({
               total={screen.matches.length}
             />
           </Box>
-          <MatchList songs={getSongs(screen.concert)} matches={screen.matches} limit={listLimit} />
+          <MatchList
+            songs={getSongs(screen.concert)}
+            matches={screen.matches}
+            limit={listLimit}
+            selectedIndex={screen.name === 'review' ? screen.index : undefined}
+          />
           {screen.name === 'matching' ? (
             <Box marginTop={1}>
               <Spinner label="Finding songs on Spotify…" />
@@ -263,7 +303,8 @@ function ConcertTitle({ concert }: { concert: Concert }) {
 
 function ReviewSummary({ matches }: { matches: Array<Match> }) {
   const found = matches.filter((match) => match.track).length;
-  const missing = matches.length - found;
+  const skipped = matches.filter((match) => match.skipped).length;
+  const missing = matches.length - found - skipped;
 
   return (
     <Box flexDirection="column" marginTop={1}>
@@ -273,10 +314,13 @@ function ReviewSummary({ matches }: { matches: Array<Match> }) {
         </Text>{' '}
         of {matches.length} songs found on Spotify
         {missing > 0 && <Text color={theme.error}> · {missing} missing</Text>}
+        {skipped > 0 && <Text color={theme.muted}> · {skipped} left out</Text>}
       </Text>
       <KeyHints
         hints={[
-          ...(found > 0 ? [['enter', 'create playlist'] as [string, string]] : []),
+          ['↑↓', 'navigate'],
+          ['enter', 'change track'],
+          ...(found > 0 ? [['c', 'create playlist'] as [string, string]] : []),
           ['esc', 'pick another concert'],
           ['q', 'quit'],
         ]}

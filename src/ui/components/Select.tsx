@@ -12,6 +12,8 @@ type Props<T> = {
   onCancel?: () => void;
   /** Number of visible rows, the list scrolls beyond that. */
   limit?: number;
+  /** Only the active list responds to keys and shows its cursor. */
+  isActive?: boolean;
 };
 
 export function Select<T>({
@@ -21,6 +23,7 @@ export function Select<T>({
   onHighlight,
   onCancel,
   limit = 10,
+  isActive = true,
 }: Props<T>) {
   const [index, setIndex] = useState(0);
   // Key repeat can deliver several presses before a re-render, so track the latest index in a ref.
@@ -33,14 +36,17 @@ export function Select<T>({
     onHighlight?.(items[nextIndex]!);
   };
 
-  useInput((input, key) => {
-    if (key.upArrow || input === 'k') move(-1);
-    else if (key.downArrow || input === 'j') move(1);
-    else if (key.pageUp) move(-limit);
-    else if (key.pageDown) move(limit);
-    else if (key.return) onSubmit(items[indexRef.current]!);
-    else if (key.escape) onCancel?.();
-  });
+  useInput(
+    (input, key) => {
+      if (key.upArrow || input === 'k') move(-1);
+      else if (key.downArrow || input === 'j') move(1);
+      else if (key.pageUp) move(-limit);
+      else if (key.pageDown) move(limit);
+      else if (key.return) onSubmit(items[indexRef.current]!);
+      else if (key.escape) onCancel?.();
+    },
+    { isActive },
+  );
 
   const offset = Math.max(0, Math.min(index - Math.floor(limit / 2), items.length - limit));
   const visible = items.slice(offset, offset + limit);
@@ -49,7 +55,7 @@ export function Select<T>({
     <Box flexDirection="column">
       <Text color={theme.muted}>{offset > 0 ? '  ↑ more' : ' '}</Text>
       {visible.map((item, visibleIndex) => {
-        const isSelected = offset + visibleIndex === index;
+        const isSelected = isActive && offset + visibleIndex === index;
         return (
           <Box key={offset + visibleIndex}>
             <Text color={theme.accent}>{isSelected ? '❯ ' : '  '}</Text>

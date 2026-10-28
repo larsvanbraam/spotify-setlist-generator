@@ -3,7 +3,12 @@ import { formatLocation, getPlaylistName, getSongs } from './setlist.ts';
 import type { Concert, Song } from './setlist.ts';
 import type { SpotifyClient, Track } from './spotify/client.ts';
 
-export type Match = { song: Song; track?: Track };
+export type Match = {
+  song: Song;
+  track?: Track;
+  /** Set when the song was left out by hand rather than not found. */
+  skipped?: boolean;
+};
 
 /**
  * Looks up every song of the concert on Spotify, a few at a time, reporting each match as it
